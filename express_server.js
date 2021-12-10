@@ -1,6 +1,9 @@
 const express = require("./node_modules/express");
 const app = express();
 
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
+
 app.set("view engine", "ejs");
 
 const bodyParser = require("body-parser");
@@ -16,6 +19,7 @@ const urlDatabase = {
 
 app.get("/urls", (req, res) => {
   let templateVars = { urls: urlDatabase };
+
   res.render("urls_index", templateVars);
 });
 app.listen(PORT, () => {
@@ -29,8 +33,20 @@ app.get("/urls/:shortURL", (req, res) => {
     shortURL: req.params.shortURL,
     longURL: urlDatabase[req.params.shortURL],
   };
+
+  app.post("/login", (req, res) => {
+    res.cookie("username", req.body.username);
+    res.redirect("/urls");
+  });
   res.render("urls_show", templateVars);
 });
+
+app.get("/u/:shortURL", (req, res) => {
+  const shortURL = req.params.shortURL;
+  const longURL = urlDatabase[shortURL];
+  res.redirect(longURL);
+});
+
 app.post("/urls", (req, res) => {
   let longURL = req.body.longURL;
   let shortURL = generateRandomString();
