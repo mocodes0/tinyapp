@@ -2,6 +2,9 @@
   a {
     margin: 0px 5px;
   }
+  label {
+    color: rgb(46, 116, 30);
+  }
 </style>
 <header>
   <nav class="navbar navbar-expand-md navbar-dark bg-success">
@@ -26,8 +29,8 @@
 
     <% if (username) { %>
     <form action="/logout" method="post">
-      <label for="username"><%= username["email"] %></label>
-      <button type="submit" name="logout">Logout</button>
+      <label for="username">Logged in as: <%= username %></label>
+      <button class="btn btn-danger" type="submit" name="logout">Logout</button>
     </form>
     <% } else { %>
     <div>
