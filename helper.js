@@ -1,12 +1,3 @@
-// const emailLookUp = (email, users) => {
-//   for (let key in users) {
-//     if (users[key].email === email) {
-//       return true;
-//     }
-//   }
-//   return false;
-// };
-
 function generateRandomString() {
   let randomString = Math.random().toString(36).substring(2, 10);
   return randomString;

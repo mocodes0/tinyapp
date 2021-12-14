@@ -36,7 +36,7 @@ const urlDatabase = {
   },
 };
 
-// USER INFO TEMPLATE
+// USER INFO TEMPLATE-----------------------------------------------------
 
 const users = {
   userRandomID: {
@@ -81,7 +81,6 @@ app.get("/urls/new", (req, res) => {
     return;
   }
   let templateVars = {
-    //username: users[req.session["id"]].email,
     user: users[req.session["id"]],
   };
   res.render("urls_new", templateVars);
@@ -158,14 +157,11 @@ app.post("/login", (req, res) => {
     res.status(404);
     res.send("Email and Password cannot be blank");
   }
-  // for (let key in users) {
-  // if (users[key].email === email && users[key].password === password) {
-  // req.session.id = key;
-  //res.redirect("/urls");
-  //}
-  // We are checking to see if the email exists in the database,
+  // We are checking to see if the email exists in the database
+
   const user = getUserByEmail(email, users);
   // if the email exists we need to make sure the password the user inputs is the same as the on in database
+
   if (user && bcrypt.compareSync(password, user.password)) {
     req.session["id"] = user.id;
     res.redirect("/urls"); // if yes then redirect to urls Page
@@ -199,6 +195,7 @@ app.get("/register", (req, res) => {
   };
   res.render("urls_registration", templateVars);
 });
+
 // Email check & error message
 
 app.post("/register", (req, res) => {
@@ -221,23 +218,6 @@ app.post("/register", (req, res) => {
     res.redirect("/urls");
   }
 });
-// ---------------- Email Lookup
-
-/*  const emailLookUp = (email, users) => {
-  for (let key in users) {
-    if (users[key].email === email) {
-      return true;
-    }
-  }
-  return false;
-};
-
-// Generating Random String ----------
-
-function generateRandomString() {
-  let randomString = Math.random().toString(36).substring(2, 10);
-  return randomString;
-} */
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}`);
