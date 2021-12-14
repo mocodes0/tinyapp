@@ -1,11 +1,26 @@
+const {
+  getUserByEmail,
+  generateRandomString,
+  urlsForUser,
+} = require("./helper");
+const bcrypt = require("bcryptjs");
 const express = require("./node_modules/express");
 const app = express();
-const cookieParser = require("cookie-parser");
-app.use(cookieParser()); // Cookies Parser
+// const cookieParser = require("cookie-parser");
+const cookieSession = require("cookie-session");
+// app.use(cookieParser()); // Cookies Parser
 app.set("view engine", "ejs");
 const bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(
+  cookieSession({
+    name: "session",
+    keys: ["key"],
 
+    // Cookie Options
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  })
+);
 const PORT = 8080;
 
 // URL Database ----------------------------------------------------
@@ -31,15 +46,20 @@ const users = {
   },
   user2RandomID: {
     id: "user2RandomID",
-    email: "user2@example.com",
-    password: "dishwasher-funk",
+    email: "a@a.com",
+    password: bcrypt.hashSync("66", 10),
   },
 };
 
 // Home Page ----------------------------------------------------------------
 app.get("/urls", (req, res) => {
+  if (!users[req.session.id]) {
+    res.redirect("/login");
+    return;
+  }
+
   let obj1 = {};
-  const loginID = req.cookies.id;
+  const loginID = req.session.id;
   for (let i in urlDatabase) {
     if (urlDatabase[i].userID === loginID) {
       obj1[i] = urlDatabase[i];
@@ -47,26 +67,40 @@ app.get("/urls", (req, res) => {
   }
   let templateVars = {
     urls: obj1,
-    username: req.cookies["id"],
+
+    user: users[req.session["id"]],
+    //username: req.cookies["id"],
   };
   res.render("urls_index", templateVars);
 });
 
 //New URL Creation----------------------------------------------------------------
 app.get("/urls/new", (req, res) => {
+  if (!users[req.session.id]) {
+    res.redirect("/login");
+    return;
+  }
   let templateVars = {
-    username: users[req.cookies.id],
+    //username: users[req.session["id"]].email,
+    user: users[req.session["id"]],
   };
   res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = {
-    shortURL: req.params.shortURL,
-    longURL: urlDatabase[req.params.shortURL].longURL,
-    username: req.cookies["id"],
-  };
-  res.render("urls_show", templateVars);
+  let individualURL = urlsForUser(req.session.id, urlDatabase);
+  if (individualURL[req.params.shortURL]) {
+    let templateVars = {
+      shortURL: req.params.shortURL,
+      longURL: urlDatabase[req.params.shortURL].longURL,
+      username: users[req.session.id].email,
+      user: users[req.session["id"]],
+    };
+    res.render("urls_show", templateVars);
+    return;
+  } else {
+    res.status(400).send(" URL does not exist ");
+  }
 });
 
 app.post("/urls", (req, res) => {
@@ -74,7 +108,7 @@ app.post("/urls", (req, res) => {
   let shortURL = generateRandomString();
   urlDatabase[shortURL] = {
     longURL,
-    userID: req.cookies.id,
+    userID: req.session.id,
   };
   res.redirect("/urls/" + shortURL);
 });
@@ -82,7 +116,12 @@ app.post("/urls", (req, res) => {
 // Edit & Deleting URL ----------------------------------------------------------------
 
 app.post("/urls/:shortURL", (req, res) => {
-  urlDatabase[req.params.shortURL] = req.body.longURL;
+  if (!urlDatabase[req.params.shortURL]) {
+    res.status(400).send(" URL does not exist ");
+    return;
+  }
+
+  urlDatabase[req.params.shortURL].longURL = req.body.longURL;
   res.redirect("/urls");
 });
 
@@ -96,26 +135,58 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 
 app.get("/login", (req, res) => {
   let templateVars = {
-    username: users[req.cookies.id],
+    user: users[req.session.id],
+    // user: null
   };
   res.render("urls_login", templateVars);
 });
 
+app.get("/u/:shortURL", (req, res) => {
+  let url = urlDatabase[req.params.shortURL];
+  if (!url) {
+    res.status(400).send(" URL does not exist ");
+    return;
+  }
+  res.redirect(url.longURL);
+});
+
 app.post("/login", (req, res) => {
-  let email = req.body.email;
+  const email = req.body.email;
   const password = req.body.password;
   console.log(password);
-  for (let key in users) {
-    if (users[key].email === email && users[key].password === password) {
-      res.cookie("id", key);
-      res.redirect("/urls");
-    }
+  if (email === "" || password === "") {
+    res.status(404);
+    res.send("Email and Password cannot be blank");
   }
+  // for (let key in users) {
+  // if (users[key].email === email && users[key].password === password) {
+  // req.session.id = key;
+  //res.redirect("/urls");
+  //}
+  // We are checking to see if the email exists in the database,
+  const user = getUserByEmail(email, users);
+  // if the email exists we need to make sure the password the user inputs is the same as the on in database
+  if (user && bcrypt.compareSync(password, user.password)) {
+    req.session["id"] = user.id;
+    res.redirect("/urls"); // if yes then redirect to urls Page
+    return;
+  }
+  // if the email exists but password is wrong tell them to type in correct
+  else if (user && !bcrypt.compareSync(password, user.password)) {
+    res.status(401);
+    res.send("Your Password is incorrect. Please try again");
+  } else {
+    res.status(401);
+    res.send("Cannot find email on the Database");
+  }
+
+  // if not tell them register as we cant find email in DB
+
   res.status(400);
   res.send("Login failed");
 });
 app.post("/logout", (req, res) => {
-  res.clearCookie("id");
+  req.session = null;
   res.redirect("/urls");
 }); // Login Logout Fix
 
@@ -123,7 +194,8 @@ app.post("/logout", (req, res) => {
 
 app.get("/register", (req, res) => {
   let templateVars = {
-    username: users[req.cookies.id],
+    user: users[req.session.id],
+    user: null,
   };
   res.render("urls_registration", templateVars);
 });
@@ -136,22 +208,22 @@ app.post("/register", (req, res) => {
   if (email === "" || password === "") {
     res.status(404);
     res.send("Email and Password cannot be blank");
-  } else if (emailLookUp(email, users)) {
+  } else if (getUserByEmail(email, users)) {
     res.status(400).send("Email already exists. Please login!!");
   } else {
     users[userID] = {
       id: userID,
       email: email,
+      password: bcrypt.hashSync(password, 10),
     };
     console.log(users);
-    res.cookie("id", userID);
+    req.session.id = userID;
     res.redirect("/urls");
-    // res.clearCookie("username", username)
   }
 });
-// ---------------- Email
+// ---------------- Email Lookup
 
-const emailLookUp = (email, users) => {
+/*  const emailLookUp = (email, users) => {
   for (let key in users) {
     if (users[key].email === email) {
       return true;
@@ -160,12 +232,12 @@ const emailLookUp = (email, users) => {
   return false;
 };
 
-// Random String Generation
+// Generating Random String ----------
 
 function generateRandomString() {
-  let randomString = Math.random().toString(36).substring(2, 8);
+  let randomString = Math.random().toString(36).substring(2, 10);
   return randomString;
-}
+} */
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}`);
